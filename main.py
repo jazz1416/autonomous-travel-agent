@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from dotenv import load_dotenv
 
-# Import the core engineering modules built earlier
+# Import modules built earlier
 from src.agent import AutonomousTravelCoordinator
 from src.database import TravelVectorDB
 from src.tools import TravelTools
@@ -14,7 +14,7 @@ from src.tools import TravelTools
 load_dotenv()
 
 # ======================================
-# 1. API Server and Cors Initialization
+# 1. API Server and CORS Initialization
 # ======================================
 app = FastAPI(
     title= "Autonomous Travel Coordinator Core API",
@@ -59,7 +59,7 @@ def health_check():
     return {"status": "operational", "engine": "FastAPI Framework"}
 
 @app.post("/api/coordinate", response_model=TravelResponse)
-def process_travel_request(request: TravelRequest):  # Removed 'async' to protect DSPy thread loops
+def process_travel_request(request: TravelRequest): 
     """Processes a user's travel request, coordinates routing metrics, and creates an itinerary."""
     openai_key = os.getenv("OPENAI_API_KEY", "")
     
@@ -68,7 +68,7 @@ def process_travel_request(request: TravelRequest):  # Removed 'async' to protec
 
     try:
         if is_simulation:
-            # Match the graceful fallback logic we designed inside your Streamlit app layer
+            # Match the fallback logic designed inside Streamlit app layer
             return TravelResponse(
                 itinerary=(
                     "### ⚠️ Local API Server Simulation Notice\n"
@@ -87,7 +87,7 @@ def process_travel_request(request: TravelRequest):  # Removed 'async' to protec
         
         # Configure and mount the live DSPy LLM connection context globally
         lm = dspy.LM("openai/gpt-4o-mini", api_key=openai_key)
-        dspy.configure(lm=lm)  # Configure globally to guarantee thread-safety inside FastAPI
+        dspy.configure(lm=lm) 
         
         # Fire execution parameters down through your core DSPy module pipeline
         agent_prediction = coordinator_agent(
@@ -105,7 +105,7 @@ def process_travel_request(request: TravelRequest):  # Removed 'async' to protec
 
     except Exception as error_exception:
         # Log the raw text down into the console so you can view the direct issue
-        print(f"🚨 BACKEND SYSTEM FAULT LOG: {error_exception}")
+        print(f"BACKEND SYSTEM FAULT LOG: {error_exception}")
         raise HTTPException(status_code=500, detail=f"Internal Orchestration Fault: {str(error_exception)}")
 
 if __name__ == "__main__":

@@ -4,16 +4,13 @@ from typing import Dict, Any
 
 class TravelTools:
     def __init__(self):
-        # These will read directly from your secure .env file later
-        self.weather_api_key = os.getenv("WEATHER_API_KEY", "mock_weather_key")
-        self.yelp_api_key = os.getenv("YELP_API_KEY", "mock_yelp_key")
+        # Read directly from .env file
+        self.weather_api_key = os.getenv("WEATHER_API_KEY")
+        self.yelp_api_key = os.getenv("YELP_API_KEY")
 
     def fetch_current_weather(self, city: str) -> Dict[str, Any]:
         """Fetches live weather conditions for a destination using OpenWeatherMap API."""
-        if self.weather_api_key == "mock_weather_key" or not self.weather_api_key:
-            return {"temperature": "22°C", "condition": "Partly Cloudy", "humidity": "60%"}
 
-        # CRUCIAL: Ensure the URL path structure is formatted EXACTLY like this line:
         url = f"https://openweathermap.org{city}&units=metric&appid={self.weather_api_key}"
         
         try:
@@ -23,7 +20,7 @@ class TravelTools:
             
             return {
                 "temperature": f"{data['main']['temp']}°C",
-                "condition": data['weather'][0]['description'].title(), # Fixed array index parsing
+                "condition": data['weather'][0]['description'].title(), 
                 "humidity": f"{data['main']['humidity']}%"
             }
         except requests.exceptions.RequestException as e:
@@ -32,11 +29,8 @@ class TravelTools:
 
 
     def search_local_attractions(self, city: str, category: str = "tourist") -> Dict[str, Any]:
-        """Queries local hot-spots and restaurants within a specific city."""
-        if self.yelp_api_key == "mock_yelp_key":
-            return {"attractions": ["Local Historic Museum", "Central Botanical Gardens", "Downtown Food Market"]}
+        """Queries local hot-spots and restaurants within a specific city from Yelp."""
 
-        # CRUCIAL: Ensure the URL path structure is formatted EXACTLY like this line:
         url = f"https://yelp.com{city}&term={category}&limit=3"
         headers = {"Authorization": f"Bearer {self.yelp_api_key}"}
 

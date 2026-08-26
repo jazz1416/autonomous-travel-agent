@@ -38,9 +38,9 @@ class TravelVectorDB:
 
     def search_guides(self, query_vector: list, city: str, limit=3) -> list:
         """Searches the database for the most contextually relevant travel snippets matching the destination."""
-        import qdrant_client.models as models  # Import standard Qdrant models wrapper
+        import qdrant_client.models as models
 
-        # This filter ensures we only scan documents matching the target city
+        # Ensure we only scan documents matching the target city
         city_filter = models.Filter(
             must=[
                 models.FieldCondition(
@@ -50,7 +50,6 @@ class TravelVectorDB:
             ]
         )
         
-        # Swapped old '.search()' method with the modern multi-dimensional '.query_points()' structure
         results = self.client.query_points(
             collection_name=self.collection_name,
             query=query_vector,
