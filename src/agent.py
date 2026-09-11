@@ -29,7 +29,15 @@ class SynthesizeItinerarySignature(dspy.Signature):
     retrieved_guides: str = dspy.InputField(desc = "Contextual background literature extracted from the local Vector DB")
     api_tool_data: str = dspy.InputField(desc = "Live, structured telemetry payloads fetched dynamically via REST APIs")
 
-    itinerary: str = dspy.OutputField(desc = "A detailed, comprehensive markdown schedule containing explicit structure")
+    itinerary: str = dspy.OutputField(desc = "A detailed, comprehensive markdown schedule containing explicit structure, " \
+                                        "summarized reviews for attractions, recommended time spent" \
+                                        "links for attractions mentioned, precise names for locations")
+
+class GetWeather(dspy.Signature):
+    """Get the current or future weather for specified city in Fahrenheit by default, or other unit if specified."""
+    user_query: str = dspy.InputField(desc = "The location and time frame that the traveler is wanting to know the weather for")
+    api_tool_data: str = dspy.InputField(desc = "Live, raw weather telemetry question or data criteria")
+    weather_report: str = dspy.OutputField(desc = "A beautifully formatted, concise markdown weather advisory. Do NOT include a travel itinerary unless specifically requested")
 
 # ==============================================
 # 2. Travel Coordinator Definition
@@ -41,6 +49,7 @@ class AutonomousTravelCoordinator(dspy.Module):
         # Define internal steps using built-in reasoning layers instead of manual text loops
         self.router = dspy.Predict(TravelRouterSignature)
         self.itinerary_generator = dspy.ChainOfThought(SynthesizeItinerarySignature)
+        self.weather = dspy.ChainOfThought(GetWeather)
 
     def forward(self, user_query: str, database_instance=None, tools_instance = None) -> dspy.Prediction:
         # Run declarative classifier to route the query
@@ -56,11 +65,20 @@ class AutonomousTravelCoordinator(dspy.Module):
             # Pull records from our Qdrant vector database if present
             if database_instance:
                 try:
-                    # Generate embedding vector from user's raw text query
-                    client_embedding_model = dspy.Embedder("openai/text-embedding-3-small")
-                    real_query_vector = client_embedding_model(user_query)[0]
+                    # 1. Generate a real embedding vector using the standardized OpenAI interface mapping
+                    openai_key = os.getenv("OPENAI_API_KEY", "")
                     
-                    # Pass the embedding vector into search function
+                    # We initialize a direct client connection loop for vector extraction
+                    from openai import OpenAI
+                    client = OpenAI(api_key=openai_key)
+                    
+                    response = client.embeddings.create(
+                        input=[user_query],
+                        model="text-embedding-3-small"
+                    )
+                    real_query_vector = response.data[0].embedding
+                    
+                    # 2. Pass the real mathematical vector into your search function
                     guide_context_list = database_instance.search_guides(
                         query_vector=real_query_vector, 
                         city=city
@@ -68,29 +86,45 @@ class AutonomousTravelCoordinator(dspy.Module):
                     guide_context = "\n---\n".join(guide_context_list) if guide_context_list else guide_context
                 
                 except Exception as embedding_fault:
-                    print(f"RAG Embedding generation bypassed: {embedding_fault}")
-                    # If embedding fails or key is missing, fall back to empty vector tracking
+                    print(f"⚠️ RAG Embedding generation bypassed: {embedding_fault}")
+                    # Safe fallback: if embedding fails, fall back to empty vector tracking
                     dummy_vector = [0.0] * 1536
                     guide_context_list = database_instance.search_guides(query_vector=dummy_vector, city=city)
                     guide_context = "\n---\n".join(guide_context_list) if guide_context_list else guide_context
 
 
+
         # Direct real time functional API routing updates
         if tools_instance:
             if routing.required_tool == "WeatherCheck":
-                tool_logs = json.dumps(tools_instance.fetch_current_weather(city))
+                # Check if the user query is asking for multiple days, a future forecast, or a timeline
+                query_lower = user_query.lower()
+                needs_forecast = any(word in query_lower for word in ["days", "forecast", "future", "week", "tomorrow", "weekend"])
+                    
+                # Pass the boolean indicator directly down to your upgraded tool method
+                tool_logs = json.dumps(tools_instance.fetch_current_weather(city, is_forecast=needs_forecast))
             elif routing.required_tool == "LocalAttractions":
                 tool_logs = json.dumps(tools_instance.search_local_attractions(city))
 
+        if routing.required_tool == "WeatherCheck":
+            synthesis = self.weather(
+                user_query = user_query,
+                api_tool_data = tool_logs
+            )
+            final_text = synthesis.weather_report
+        else:
+            synthesis = self.itinerary_generator(
+                        user_query=user_query,
+                        retrieved_guides=guide_context, 
+                        api_tool_data=tool_logs
+            )
+            final_text = synthesis.itinerary
+
         # Forward execution into synthesis layer
-        synthesis = self.itinerary_generator(
-            user_query=user_query,
-            retrieved_guides=guide_context, 
-            api_tool_data=tool_logs
-        )
+        
 
         return dspy.Prediction(
-            itinerary = synthesis.itinerary,
+            itinerary = final_text,
             executed_tool = routing.required_tool,
             target_city = routing.extracted_city
         )

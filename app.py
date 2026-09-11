@@ -119,10 +119,15 @@ if user_prompt := str_layout.chat_input("Where are you planning to travel next?"
                 
                 response_text = data["itinerary"]
                 
-                # Refresh sidebar dashboard parameters with live metrics straight from the API
-                active_city_widget.metric(label="Target Focus City", value=data["target_city"].capitalize())
-                active_routing_widget.metric(label="Orchestration Routing Path", value=data["executed_tool"])
-                system_status_widget.metric(label="Backend Pipeline Status", value=data["system_status"])
+                # Refresh sidebar widgets instantly with bright new logs
+                active_city_widget.metric(label="📍 Target Destination", value=data["target_city"].capitalize())
+                active_routing_widget.metric(label="⚡ Orchestration Path", value=data["executed_tool"])
+                system_status_widget.metric(label="🟢 Pipeline Status", value="Success")
+                
+                # 🚀 NEW VISUAL ACCENT: Highlight standalone weather reports uniquely
+                if data["executed_tool"] == "WeatherCheck":
+                    str_layout.toast("🌤️ Live Weather Metrics Synchronized!", icon="🌤️")
+
                 
             except Exception as system_fault:
                 print(f"Frontend Connection Error: {system_fault}")
